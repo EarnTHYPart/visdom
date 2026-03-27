@@ -557,7 +557,7 @@ class AutoLogger(object):
         for parameter in self._hook_model.parameters():
             if parameter.grad is None:
                 continue
-            grad_norm = parameter.grad.detach().data.norm(2)
+            grad_norm = parameter.grad.norm(2)
             total_sq_norm += float(grad_norm.item() ** 2)
         return total_sq_norm ** 0.5
 
@@ -588,6 +588,7 @@ class AutoLogger(object):
             self._hook_optimizer = optimizer
             self._hook_original_step = optimizer.step
 
+            @wraps(self._hook_original_step)
             def _step_with_logging(opt_self, *args, **kwargs):
                 grad_norm = self._compute_grad_norm_from_model()
                 self.log(
