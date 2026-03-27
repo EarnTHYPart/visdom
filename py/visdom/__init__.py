@@ -441,6 +441,8 @@ class AutoLogger(object):
         self._hook_step = 0.0
         self._hook_pending_loss = None
         self._hook_handles = []
+        self._hook_optimizer = None
+        self._hook_original_step = None
 
     def _coerce_scalar(self, value, name):
         value = _to_numpy(value)
@@ -559,10 +561,11 @@ class AutoLogger(object):
             total_sq_norm += float(grad_norm.item() ** 2)
         return total_sq_norm ** 0.5
 
-    def attach_hooks(self, model, loss_module=None, start_step=0):
+    def attach_hooks(self, model, loss_module=None, optimizer=None, start_step=0):
         """Attach PyTorch hooks for automatic loss and grad norm logging."""
         try:
             import torch.nn as nn
+            import types
         except ImportError as err:
             raise RuntimeError("Hook-based logging requires PyTorch") from err
 
@@ -572,11 +575,31 @@ class AutoLogger(object):
         if loss_module is not None and not isinstance(loss_module, nn.Module):
             raise TypeError("loss_module must be a torch.nn.Module")
 
+        if optimizer is not None and not hasattr(optimizer, "step"):
+            raise TypeError("optimizer must define a step() method")
+
         self.detach_hooks()
 
         self._hook_model = model
         self._hook_step = self._coerce_scalar(start_step, "start_step")
         self._hook_pending_loss = None
+
+        if optimizer is not None:
+            self._hook_optimizer = optimizer
+            self._hook_original_step = optimizer.step
+
+            def _step_with_logging(opt_self, *args, **kwargs):
+                grad_norm = self._compute_grad_norm_from_model()
+                self.log(
+                    step=self._hook_step,
+                    loss=self._hook_pending_loss,
+                    grad_norm=grad_norm,
+                )
+                self._hook_pending_loss = None
+                self._hook_step += 1.0
+                return self._hook_original_step(*args, **kwargs)
+
+            optimizer.step = types.MethodType(_step_with_logging, optimizer)
 
         def _on_model_backward(module, grad_input, grad_output):
             grad_norm = self._compute_grad_norm_from_model()
@@ -591,7 +614,9 @@ class AutoLogger(object):
         def _on_loss_forward(module, module_input, module_output):
             self._hook_pending_loss = self._coerce_scalar(module_output, "loss")
 
-        self._hook_handles.append(model.register_full_backward_hook(_on_model_backward))
+        if optimizer is None:
+            # Fallback mode: logs at model backward hook if optimizer wrapping is not used.
+            self._hook_handles.append(model.register_full_backward_hook(_on_model_backward))
 
         if loss_module is not None:
             self._hook_handles.append(loss_module.register_forward_hook(_on_loss_forward))
@@ -603,6 +628,12 @@ class AutoLogger(object):
         for handle in self._hook_handles:
             handle.remove()
         self._hook_handles = []
+
+        if self._hook_optimizer is not None and self._hook_original_step is not None:
+            self._hook_optimizer.step = self._hook_original_step
+
+        self._hook_optimizer = None
+        self._hook_original_step = None
         self._hook_model = None
         self._hook_pending_loss = None
         return True
