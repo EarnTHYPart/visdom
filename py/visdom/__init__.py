@@ -416,6 +416,137 @@ def pytorch_wrap(f):
     return wrapped_f
 
 
+class AutoLogger(object):
+    """Utility helper for streaming scalar metrics to line plots."""
+
+    def __init__(
+        self,
+        viz,
+        env=None,
+        loss_win="autologger_loss",
+        grad_norm_win="autologger_grad_norm",
+        loss_title="Loss",
+        grad_norm_title="Grad Norm",
+    ):
+        self.viz = viz
+        self.env = env
+        self.loss_title = loss_title
+        self.grad_norm_title = grad_norm_title
+        self.loss_win = loss_win
+        self.grad_norm_win = grad_norm_win
+        self._loss_initialized = False
+        self._grad_norm_initialized = False
+        self._next_step = 0.0
+
+    def _coerce_scalar(self, value, name):
+        value = _to_numpy(value)
+
+        if isinstance(value, np.ndarray):
+            if value.size != 1:
+                raise ValueError("{} must be a scalar value".format(name))
+            value = value.reshape(-1)[0]
+        elif isinstance(value, Sequence) and not isstr(value):
+            if len(value) != 1:
+                raise ValueError("{} must be a scalar value".format(name))
+            value = value[0]
+
+        if not isnum(value):
+            raise TypeError("{} must be numeric".format(name))
+
+        value = float(value)
+        if not np.isfinite(value):
+            raise ValueError("{} must be finite".format(name))
+        return value
+
+    def _get_step(self, step):
+        if step is None:
+            step_value = self._next_step
+            self._next_step += 1.0
+            return step_value
+
+        step_value = self._coerce_scalar(step, "step")
+        self._next_step = step_value + 1.0
+        return step_value
+
+    def _plot_metric(self, metric, metric_name, title, initialized, win):
+        x = np.array([self._current_step], dtype=np.float64)
+        y = np.array([metric], dtype=np.float64)
+
+        if initialized:
+            self.viz.line(
+                X=x,
+                Y=y,
+                win=win,
+                env=self.env,
+                update="append",
+            )
+            return True, win
+
+        new_win = self.viz.line(
+            X=x,
+            Y=y,
+            win=win,
+            env=self.env,
+            opts={
+                "title": title,
+                "xlabel": "Step",
+                "ylabel": metric_name,
+            },
+        )
+        return True, new_win
+
+    def log(self, loss=None, grad_norm=None, step=None):
+        """Log a single point for loss and/or grad norm plots."""
+        if loss is None and grad_norm is None:
+            return True
+
+        try:
+            self._current_step = self._get_step(step)
+
+            if loss is not None:
+                loss_value = self._coerce_scalar(loss, "loss")
+                self._loss_initialized, self.loss_win = self._plot_metric(
+                    metric=loss_value,
+                    metric_name="Loss",
+                    title=self.loss_title,
+                    initialized=self._loss_initialized,
+                    win=self.loss_win,
+                )
+
+            if grad_norm is not None:
+                grad_value = self._coerce_scalar(grad_norm, "grad_norm")
+                self._grad_norm_initialized, self.grad_norm_win = self._plot_metric(
+                    metric=grad_value,
+                    metric_name="Grad Norm",
+                    title=self.grad_norm_title,
+                    initialized=self._grad_norm_initialized,
+                    win=self.grad_norm_win,
+                )
+            return True
+        except Exception as exc:
+            if self.viz.raise_exceptions:
+                raise
+            warnings.warn("AutoLogger failed to log metrics: {}".format(exc))
+            return False
+
+    def run(self, steps=100, seed=7, sleep_seconds=0.0):
+        """Generate synthetic training metrics and log them."""
+        if steps <= 0:
+            raise ValueError("steps must be greater than 0")
+
+        rng = np.random.RandomState(seed)
+        for idx in range(steps):
+            loss = max(1e-6, np.exp(-idx / 25.0) + 0.02 * rng.rand())
+            grad_norm = max(1e-8, np.exp(-idx / 30.0) + 0.05 * rng.rand())
+
+            ok = self.log(loss=loss, grad_norm=grad_norm, step=idx)
+            if not ok:
+                return False
+            if sleep_seconds > 0:
+                time.sleep(sleep_seconds)
+        return True
+
+
 class Visdom(object):
     def __init__(
         self,
@@ -922,6 +1053,24 @@ class Visdom(object):
         for entry in log_entries:
             endpoint, msg = json.loads(entry)
             self._send(msg, endpoint, from_log=True)
+
+    def auto_logger(
+        self,
+        env=None,
+        loss_win="autologger_loss",
+        grad_norm_win="autologger_grad_norm",
+        loss_title="Loss",
+        grad_norm_title="Grad Norm",
+    ):
+        """Create an AutoLogger for streaming loss and grad norm metrics."""
+        return AutoLogger(
+            viz=self,
+            env=env,
+            loss_win=loss_win,
+            grad_norm_win=grad_norm_win,
+            loss_title=loss_title,
+            grad_norm_title=grad_norm_title,
+        )
 
     # Content
 

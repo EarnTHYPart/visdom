@@ -237,6 +237,11 @@ If you have cloned this repository, you can run our demo showcase.
 python example/demo.py
 ```
 
+You can also run the dedicated auto-logger demo that streams loss and grad norm:
+```bash
+python example/auto_logger.py --offline --steps 60
+```
+
 
 ## API
 For a quick introduction into the capabilities of `visdom`, have a look at the `example` directory, or read the details below.
@@ -311,6 +316,7 @@ vis._send({'data': [trace], 'layout': layout, 'win': 'mywin'})
 - [`vis.get_window_data`](#visget_window_data): get current data for a window
 - [`vis.check_connection`](#vischeck_connection): check if the server is connected
 - [`vis.replay_log`](#visreplay_log): replay the actions from the provided log file
+- [`vis.auto_logger`](#visauto_logger): helper for logging loss and grad norm line plots
 
 
 ## Details
@@ -779,6 +785,25 @@ This function takes the contents of a visdom log and replays them to the current
 
 Arguments:
 - `log_filename`: log file to replay the contents of.
+
+#### vis.auto_logger
+This function creates an `AutoLogger` helper that logs scalar `loss` and `grad_norm` metrics to Visdom line plots.
+
+Optional arguments:
+- `env`: Environment to send the windows to. Defaults to the client's env.
+- `loss_win`: Window id for loss values.
+- `grad_norm_win`: Window id for gradient norm values.
+- `loss_title`: Plot title for the loss window.
+- `grad_norm_title`: Plot title for the grad norm window.
+
+Example:
+```python
+import visdom
+
+viz = visdom.Visdom()
+logger = viz.auto_logger(env="main")
+logger.log(step=0, loss=1.25, grad_norm=0.83)
+```
 
 ## Customizing Visdom
 The user config directory for visdom is

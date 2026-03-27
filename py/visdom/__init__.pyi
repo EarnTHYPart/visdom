@@ -25,6 +25,25 @@ Tensor = Any
 # See https://github.com/python/mypy/issues/1693.
 _SendReturn = Text
 
+
+class AutoLogger:
+    def __init__(
+        self,
+        viz: "Visdom",
+        env: _OptStr = ...,
+        loss_win: Text = ...,
+        grad_norm_win: Text = ...,
+        loss_title: Text = ...,
+        grad_norm_title: Text = ...,
+    ) -> None: ...
+    def log(
+        self,
+        loss: Optional[float] = ...,
+        grad_norm: Optional[float] = ...,
+        step: Optional[float] = ...,
+    ) -> bool: ...
+    def run(self, steps: int = ..., seed: int = ..., sleep_seconds: float = ...) -> bool: ...
+
 class Visdom:
     def __init__(
         self,
@@ -53,6 +72,14 @@ class Visdom:
     def win_exists(self, win: Text, env: _OptStr = ...) -> Optional[bool]: ...
     def check_connection(self) -> bool: ...
     def replay_log(self, log_filename: Text) -> None: ...
+    def auto_logger(
+        self,
+        env: _OptStr = ...,
+        loss_win: Text = ...,
+        grad_norm_win: Text = ...,
+        loss_title: Text = ...,
+        grad_norm_title: Text = ...,
+    ) -> AutoLogger: ...
     def text(
         self,
         text: Text,
