@@ -46,6 +46,35 @@ def run_torch(logger, steps, seed):
     return True
 
 
+def run_torch_hooked(logger, steps, seed):
+    try:
+        import torch
+        import torch.nn as nn
+    except ImportError as err:
+        raise RuntimeError("PyTorch is not available") from err
+
+    torch.manual_seed(seed)
+    model = nn.Sequential(nn.Linear(16, 32), nn.ReLU(), nn.Linear(32, 1))
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.05)
+    criterion = nn.MSELoss()
+
+    logger.attach_hooks(model=model, loss_module=criterion, start_step=0)
+    try:
+        for _ in range(steps):
+            x = torch.randn(64, 16)
+            y = x.sum(dim=1, keepdim=True) * 0.25
+
+            optimizer.zero_grad()
+            prediction = model(x)
+            loss = criterion(prediction, y)
+            loss.backward()
+            optimizer.step()
+    finally:
+        logger.detach_hooks()
+
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run Visdom auto-logger demo")
     parser.add_argument("--steps", type=int, default=60, help="Number of logging steps")
@@ -57,6 +86,7 @@ def main():
     parser.add_argument("--offline", action="store_true", help="Run in offline mode")
     parser.add_argument("--log", type=str, default="", help="Path to visdom offline log file")
     parser.add_argument("--use_torch", action="store_true", help="Use a tiny torch training loop")
+    parser.add_argument("--hook_based", action="store_true", help="Use PyTorch hooks for automatic logging")
     args = parser.parse_args()
 
     log_path = args.log
@@ -80,7 +110,9 @@ def main():
         grad_norm_title="AutoLogger Grad Norm",
     )
 
-    if args.use_torch:
+    if args.use_torch and args.hook_based:
+        ok = run_torch_hooked(logger, steps=args.steps, seed=args.seed)
+    elif args.use_torch:
         ok = run_torch(logger, steps=args.steps, seed=args.seed)
     else:
         ok = logger.run(steps=args.steps, seed=args.seed)
