@@ -790,7 +790,7 @@ const App = () => {
     <EnvModal
       key="EnvModal"
       activeEnv={selection.envIDs[0]}
-      envList={filteredEnvList}
+      envList={storeMeta.envList}
       onEnvDelete={onEnvDelete}
       onEnvSave={onEnvSave}
       onModalClose={() => setShowEnvModal(false)}
