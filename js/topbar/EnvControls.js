@@ -18,10 +18,12 @@ function EnvControls(props) {
   const {
     envList,
     envIDs,
+    envQuery,
     envSelectorStyle,
     onEnvSelect,
     onEnvClear,
     onEnvManageButton,
+    onEnvQueryChange,
   } = props;
   const [confirmClear, setConfirmClear] = useState(false);
 
@@ -67,6 +69,17 @@ function EnvControls(props) {
   return (
     <span>
       <span>Environment&nbsp;</span>
+      <input
+        className="form-control"
+        style={{
+          display: 'inline-block',
+          width: 260,
+          marginRight: 8,
+        }}
+        placeholder="query: lr=0.001 AND batch_size=64"
+        value={envQuery}
+        onChange={(ev) => onEnvQueryChange(ev.target.value)}
+      />
       <div
         className="btn-group navbar-btn"
         role="group"
@@ -96,6 +109,15 @@ function EnvControls(props) {
             onChange={onEnvSelect}
           />
         </div>
+        <button
+          data-toggle="tooltip"
+          title="Clear Environment Query"
+          data-placement="bottom"
+          className="btn btn-default"
+          onClick={() => onEnvQueryChange('')}
+        >
+          <span className="glyphicon glyphicon-remove-circle" />
+        </button>
         <button
           id="clear-button"
           data-toggle="tooltip"

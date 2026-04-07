@@ -3,6 +3,7 @@ import tempfile
 import os.path
 import numpy as np
 import json
+import math
 
 
 def misc_plot_matplot(viz, env, args):
@@ -100,5 +101,65 @@ def misc_getset_state(viz, env, args):
     data = json.loads(viz.get_window_data(window, env=env))
     data['content'] = 'test two'
     viz.set_window_data(json.dumps(data), env=env, win=window)
+
+
+def _parse_bool(value, default=False):
+    if value is None:
+        return default
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'y', 'on')
+
+
+def misc_auto_logger(viz, env, args):
+    """Auto logger example for loss and grad norm line plots."""
+    steps = int(args[0]) if len(args) > 0 else 60
+    use_torch = _parse_bool(args[1], default=False) if len(args) > 1 else False
+
+    logger = viz.auto_logger(
+        env=env,
+        loss_title='AutoLogger Loss',
+        grad_norm_title='AutoLogger Grad Norm',
+    )
+
+    if use_torch:
+        try:
+            import torch
+            import torch.nn as nn
+
+            torch.manual_seed(3)
+            model = nn.Sequential(nn.Linear(16, 32), nn.ReLU(), nn.Linear(32, 1))
+            optimizer = torch.optim.SGD(model.parameters(), lr=0.05)
+            criterion = nn.MSELoss()
+
+            for step in range(steps):
+                x = torch.randn(64, 16)
+                y = x.sum(dim=1, keepdim=True) * 0.25
+
+                optimizer.zero_grad()
+                prediction = model(x)
+                loss = criterion(prediction, y)
+                loss.backward()
+
+                grad_sq = 0.0
+                for parameter in model.parameters():
+                    if parameter.grad is not None:
+                        grad_sq += float(parameter.grad.norm(2).item()) ** 2
+                grad_norm = math.sqrt(grad_sq)
+
+                if not logger.log(loss=float(loss.item()), grad_norm=grad_norm, step=step):
+                    raise RuntimeError('Auto logger failed while plotting torch metrics')
+                optimizer.step()
+
+            return logger.loss_win
+        except ImportError:
+            print('PyTorch not found. Falling back to synthetic auto logger metrics.')
+
+    rng = np.random.RandomState(7)
+    for step in range(steps):
+        loss = max(1e-6, np.exp(-step / 25.0) + 0.01 * rng.rand())
+        grad_norm = max(1e-8, np.exp(-step / 30.0) + 0.04 * rng.rand())
+        if not logger.log(loss=loss, grad_norm=grad_norm, step=step):
+            raise RuntimeError('Auto logger failed while plotting synthetic metrics')
+
+    return logger.loss_win
 
 
