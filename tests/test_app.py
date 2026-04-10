@@ -26,7 +26,7 @@ class TestApplicationInitialization:
                 env_path=tmpdir,
             )
             assert app is not None
-            assert hasattr(app, 'handlers')
+            assert hasattr(app, 'wildcard_router')
 
     def test_application_with_custom_base_url(self):
         """Test Application initialization with custom base URL."""
@@ -58,12 +58,11 @@ class TestApplicationHandlers:
         """Test that application handlers are properly registered."""
         with tempfile.TemporaryDirectory() as tmpdir:
             app = Application(
-                hostname='localhost',
                 port=8097,
                 base_url='/',
                 env_path=tmpdir,
             )
-            handlers = app.application.handlers
+            handlers = app.wildcard_router.rules
             # Should have handlers registered
             assert len(handlers) > 0
 
@@ -71,16 +70,12 @@ class TestApplicationHandlers:
         """Test that registered handler patterns are valid regex."""
         with tempfile.TemporaryDirectory() as tmpdir:
             app = Application(
-                hostname='localhost',
                 port=8097,
                 base_url='/',
                 env_path=tmpdir,
             )
-            # All handler tuples should be (pattern, handler) pairs
-            for route_spec in app.application.handlers[0]:
-                if hasattr(route_spec, '__iter__') and not isinstance(route_spec, str):
-                    # Should be a tuple with pattern and handler
-                    assert len(route_spec) >= 2
+            # Ensure the configured router has route rules.
+            assert len(app.wildcard_router.rules) > 0
 
 
 class TestApplicationStateManagement:
