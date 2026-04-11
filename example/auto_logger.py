@@ -58,12 +58,7 @@ def run_torch_hooked(logger, steps, seed):
     optimizer = torch.optim.SGD(model.parameters(), lr=0.05)
     criterion = nn.MSELoss()
 
-    logger.attach_hooks(
-        model=model,
-        loss_module=criterion,
-        optimizer=optimizer,
-        start_step=0,
-    )
+    logger.attach_hooks(model=model, loss_module=criterion, start_step=0)
     try:
         for _ in range(steps):
             x = torch.randn(64, 16)

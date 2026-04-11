@@ -815,14 +815,6 @@ logger.attach_hooks(model=model, loss_module=criterion)
 logger.detach_hooks()
 ```
 
-Hook-based MNIST logging summary:
-- Added `AutoLogger` support for both manual scalar logging and automatic PyTorch hook-based logging.
-- In hook mode, `attach_hooks(..., optimizer=...)` wraps `optimizer.step()` so grad norm is logged reliably per step.
-- Loss and grad norm are streamed to Visdom windows while training runs normally.
-- Accuracy can be logged per epoch using `viz.line(..., update='append')` in the same environment.
-- After training, call `viz.save([env_name])` to persist the environment to disk.
-- Example flow: start server, train with hooks, `detach_hooks()`, save env, open `/env/<env_name>` in browser.
-
 ## Customizing Visdom
 The user config directory for visdom is
 - `~/.config/visdom` for Linux
