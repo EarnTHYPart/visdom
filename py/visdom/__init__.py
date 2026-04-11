@@ -437,10 +437,6 @@ class AutoLogger(object):
         self._loss_initialized = False
         self._grad_norm_initialized = False
         self._next_step = 0.0
-        self._hook_model = None
-        self._hook_step = 0.0
-        self._hook_pending_loss = None
-        self._hook_handles = []
 
     def _coerce_scalar(self, value, name):
         value = _to_numpy(value)
@@ -548,63 +544,6 @@ class AutoLogger(object):
                 return False
             if sleep_seconds > 0:
                 time.sleep(sleep_seconds)
-        return True
-
-    def _compute_grad_norm_from_model(self):
-        total_sq_norm = 0.0
-        for parameter in self._hook_model.parameters():
-            if parameter.grad is None:
-                continue
-            grad_norm = parameter.grad.detach().data.norm(2)
-            total_sq_norm += float(grad_norm.item() ** 2)
-        return total_sq_norm ** 0.5
-
-    def attach_hooks(self, model, loss_module=None, start_step=0):
-        """Attach PyTorch hooks for automatic loss and grad norm logging."""
-        try:
-            import torch.nn as nn
-        except ImportError as err:
-            raise RuntimeError("Hook-based logging requires PyTorch") from err
-
-        if not isinstance(model, nn.Module):
-            raise TypeError("model must be a torch.nn.Module")
-
-        if loss_module is not None and not isinstance(loss_module, nn.Module):
-            raise TypeError("loss_module must be a torch.nn.Module")
-
-        self.detach_hooks()
-
-        self._hook_model = model
-        self._hook_step = self._coerce_scalar(start_step, "start_step")
-        self._hook_pending_loss = None
-
-        def _on_model_backward(module, grad_input, grad_output):
-            grad_norm = self._compute_grad_norm_from_model()
-            self.log(
-                step=self._hook_step,
-                loss=self._hook_pending_loss,
-                grad_norm=grad_norm,
-            )
-            self._hook_pending_loss = None
-            self._hook_step += 1.0
-
-        def _on_loss_forward(module, module_input, module_output):
-            self._hook_pending_loss = self._coerce_scalar(module_output, "loss")
-
-        self._hook_handles.append(model.register_full_backward_hook(_on_model_backward))
-
-        if loss_module is not None:
-            self._hook_handles.append(loss_module.register_forward_hook(_on_loss_forward))
-
-        return True
-
-    def detach_hooks(self):
-        """Remove all PyTorch hooks previously registered by this logger."""
-        for handle in self._hook_handles:
-            handle.remove()
-        self._hook_handles = []
-        self._hook_model = None
-        self._hook_pending_loss = None
         return True
 
 

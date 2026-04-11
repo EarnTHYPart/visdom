@@ -808,13 +808,6 @@ logger = viz.auto_logger(env="main")
 logger.log(step=0, loss=1.25, grad_norm=0.83)
 ```
 
-For hook-based automatic logging in PyTorch, attach hooks to your model (and optional loss module):
-```python
-logger.attach_hooks(model=model, loss_module=criterion)
-# run your standard training loop with loss.backward()
-logger.detach_hooks()
-```
-
 ## Customizing Visdom
 The user config directory for visdom is
 - `~/.config/visdom` for Linux
