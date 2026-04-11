@@ -14,7 +14,7 @@
 import 'fetch';
 import 'rc-tree-select/assets/index.css';
 
-import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import ReactResizeDetector from 'react-resize-detector';
 
@@ -35,7 +35,6 @@ import ConnectionIndicator from './topbar/ConnectionIndicator';
 import EnvControls from './topbar/EnvControls';
 import FilterControls from './topbar/FilterControls';
 import ViewControls from './topbar/ViewControls';
-import { filterEnvsByQuery } from './util';
 import WidthProvider from './Width';
 
 const ReactGridLayout = require('react-grid-layout');
@@ -106,18 +105,6 @@ const App = () => {
   const [filterString, setFilterString] = useState(
     localStorage.getItem('filter') || ''
   );
-  const [envQuery, setEnvQuery] = useState(
-    localStorage.getItem('envQuery') || ''
-  );
-
-  const filteredEnvList = useMemo(() => {
-    const filtered = filterEnvsByQuery(storeMeta.envList, envQuery);
-    const selectedMissing = selection.envIDs.filter(
-      (env) =>
-        storeMeta.envList.indexOf(env) > -1 && filtered.indexOf(env) === -1
-    );
-    return selectedMissing.concat(filtered);
-  }, [storeMeta.envList, selection.envIDs, envQuery]);
 
   // non-triggering state variables
   const _bin = useRef(null);
@@ -717,10 +704,6 @@ const App = () => {
     localStorage.setItem('filter', filterString);
   }, [filterString]);
 
-  useEffect(() => {
-    localStorage.setItem('envQuery', envQuery);
-  }, [envQuery]);
-
   const onWidthChange = (width, cols) => {
     windowSize.current.cols = cols;
     windowSize.current.width = width;
@@ -790,7 +773,7 @@ const App = () => {
     <EnvModal
       key="EnvModal"
       activeEnv={selection.envIDs[0]}
-      envList={filteredEnvList}
+      envList={storeMeta.envList}
       onEnvDelete={onEnvDelete}
       onEnvSave={onEnvSave}
       onModalClose={() => setShowEnvModal(false)}
@@ -810,15 +793,13 @@ const App = () => {
   let envControls = (
     <EnvControls
       envIDs={selection.envIDs}
-      envList={filteredEnvList}
-      envQuery={envQuery}
+      envList={storeMeta.envList}
       envSelectorStyle={{
         width: Math.max(window.innerWidth / 3, 50),
       }}
       onEnvClear={closeAllPanes}
       onEnvManageButton={() => setShowEnvModal(!showEnvModal)}
       onEnvSelect={onEnvSelect}
-      onEnvQueryChange={(query) => setEnvQuery(query)}
     />
   );
   let viewControls = (
