@@ -1,3 +1,6 @@
+import json
+import os
+
 from visdom.utils import server_utils
 
 
@@ -12,6 +15,7 @@ def test_hash_password_is_deterministic_and_hex():
 def test_extract_eid_defaults_to_main_and_escapes_slashes():
     assert server_utils.extract_eid({}) == "main"
     assert server_utils.extract_eid({"eid": "team/exp"}) == "team_exp"
+    assert server_utils.extract_eid({"eid": "team\\exp"}) == "team_exp"
 
 
 def test_window_builds_plot_payload_by_default():
@@ -52,3 +56,60 @@ def test_update_window_applies_non_none_layout_and_opts():
     assert updated["content"]["layout"]["xaxis"]["title"] == "new-x"
     assert "yaxis" not in updated["content"]["layout"]
     assert [d["name"] for d in updated["content"]["data"]] == ["A", "B"]
+
+
+class _DummySocket:
+    def __init__(self):
+        self.messages = []
+        self.eid = None
+
+    def write_message(self, msg):
+        self.messages.append(msg)
+
+
+def _plot_env(title):
+    return {
+        "jsons": {
+            "win": {
+                "type": "plot",
+                "title": title,
+                "content": {"data": [{"name": "trace"}], "layout": {}},
+                "i": 1,
+            }
+        },
+        "reload": {},
+    }
+
+
+def test_compare_envs_does_not_load_from_parent_directory(tmp_path):
+    env_path = tmp_path / "envs"
+    env_path.mkdir()
+    traversal_eid = os.path.join("..", "secret")
+    (tmp_path / "secret.json").write_text(
+        json.dumps(_plot_env("outside")), encoding="utf-8"
+    )
+
+    state = {"safe": _plot_env("safe")}
+    socket = _DummySocket()
+
+    server_utils.compare_envs(
+        state, ["safe", traversal_eid], socket, env_path=str(env_path)
+    )
+
+    assert traversal_eid not in state
+
+
+def test_load_env_does_not_load_from_parent_directory(tmp_path):
+    env_path = tmp_path / "envs"
+    env_path.mkdir()
+    traversal_eid = os.path.join("..", "secret")
+    (tmp_path / "secret.json").write_text(
+        json.dumps(_plot_env("outside")), encoding="utf-8"
+    )
+
+    state = {}
+    socket = _DummySocket()
+
+    server_utils.load_env(state, traversal_eid, socket, env_path=str(env_path))
+
+    assert traversal_eid not in state

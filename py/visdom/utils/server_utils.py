@@ -139,7 +139,28 @@ def escape_eid(eid):
     """Replace slashes with underscores, to avoid recognizing them
     as directories.
     """
-    return eid.replace("/", "_")
+    return eid.replace("/", "_").replace("\\", "_")
+
+
+def resolve_env_path_file(env_path, eid):
+    """Resolve env json path and ensure it stays under env_path."""
+    if env_path is None:
+        return None
+
+    filename = "{}.json".format(eid.strip())
+    base_dir = os.path.abspath(env_path)
+    candidate = os.path.abspath(os.path.join(base_dir, filename))
+
+    try:
+        if os.path.commonpath([base_dir, candidate]) != base_dir:
+            logging.warning("Rejecting env id outside env_path: %s", eid)
+            return None
+    except ValueError:
+        # Different drives on Windows are never within env_path.
+        logging.warning("Rejecting env id on different drive: %s", eid)
+        return None
+
+    return candidate
 
 
 def extract_eid(args):
@@ -244,7 +265,9 @@ def compare_envs(state, eids, socket, env_path=DEFAULT_ENV_PATH):
         if eid in state:
             envs[eid] = state.get(eid)
         elif env_path is not None:
-            p = os.path.join(env_path, "{}.json".format(eid.strip()))
+            p = resolve_env_path_file(env_path, eid)
+            if p is None:
+                continue
             if os.path.exists(p):
                 with open(p, "r") as fn:
                     env = tornado.escape.json_decode(fn.read())
@@ -382,8 +405,8 @@ def load_env(state, eid, socket, env_path=DEFAULT_ENV_PATH):
     if eid in state:
         env = state.get(eid)
     elif env_path is not None:
-        p = os.path.join(env_path, "{}.json".format(eid.strip()))
-        if os.path.exists(p):
+        p = resolve_env_path_file(env_path, eid)
+        if p is not None and os.path.exists(p):
             with open(p, "r") as fn:
                 env = tornado.escape.json_decode(fn.read())
                 state[eid] = env
