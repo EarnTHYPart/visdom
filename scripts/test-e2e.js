@@ -10,15 +10,22 @@ const visdomPort = 8098;
 const visdomUrl = `http://127.0.0.1:${visdomPort}/`;
 
 function findPythonExecutable() {
-  const windowsPython = path.join(repoRoot, '.venv', 'Scripts', 'python.exe');
-  const posixPython = path.join(repoRoot, '.venv', 'bin', 'python');
-
-  if (fs.existsSync(windowsPython)) {
-    return windowsPython;
+  if (process.env.PYTHON && process.env.PYTHON.trim().length > 0) {
+    return process.env.PYTHON.trim();
   }
 
-  if (fs.existsSync(posixPython)) {
-    return posixPython;
+  const envNames = ['.venv', 'venv'];
+  for (const envName of envNames) {
+    const windowsPython = path.join(repoRoot, envName, 'Scripts', 'python.exe');
+    const posixPython = path.join(repoRoot, envName, 'bin', 'python');
+
+    if (fs.existsSync(windowsPython)) {
+      return windowsPython;
+    }
+
+    if (fs.existsSync(posixPython)) {
+      return posixPython;
+    }
   }
 
   return process.platform === 'win32' ? 'python' : 'python3';
