@@ -28,13 +28,21 @@
 
 import '@4tw/cypress-drag-drop';
 
+/* global Cypress, cy */
+
 Cypress.Commands.add('run', (name, opts) => {
   var saveto = (opts && "env" in opts) ? opts["env"] : name + "_" + Cypress._.random(0, 1e6);
   var argscli = (opts && "args" in opts) ? (' -arg '+opts["args"].join(' ')) : '';
   var seed = (opts && "seed" in opts) ? (' -seed '+opts["seed"]) : '';
-  if (!opts || !("asyncrun" in opts) || !opts["asyncrun"])
-      cy.exec(`python example/demo.py -port 8098 -testing -run ${name} -env ${saveto} ${seed} ${argscli}`);
-  else
+  var pythonEnv = {
+      PYTHONPATH: 'py'
+  };
+  if (!opts || !("asyncrun" in opts) || !opts["asyncrun"]) {
+      cy.exec(
+          `python example/demo.py -port 8098 -testing -run ${name} -env ${saveto} ${seed} ${argscli}`,
+          { env: pythonEnv }
+      );
+  } else
       cy.task('asyncrun', {
           run: name,
           env: saveto,

@@ -1,4 +1,5 @@
 {
     "baseUrl": "http://localhost:8098",
+    "pageLoadTimeout": 60000,
     "video": false
 }

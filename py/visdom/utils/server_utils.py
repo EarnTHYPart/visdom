@@ -147,9 +147,10 @@ def resolve_env_path_file(env_path, eid):
     if env_path is None:
         return None
 
-    filename = "{}.json".format(eid.strip())
-    base_dir = os.path.abspath(env_path)
-    candidate = os.path.abspath(os.path.join(base_dir, filename))
+    safe_eid = escape_eid(eid.strip())
+    filename = "{}.json".format(safe_eid)
+    base_dir = os.path.realpath(env_path)
+    candidate = os.path.realpath(os.path.join(base_dir, filename))
 
     try:
         if os.path.commonpath([base_dir, candidate]) != base_dir:
@@ -273,6 +274,10 @@ def compare_envs(state, eids, socket, env_path=DEFAULT_ENV_PATH):
                     env = tornado.escape.json_decode(fn.read())
                     state[eid] = env
                     envs[eid] = env
+
+    if len(envs) == 0:
+        logging.warning("no environments available for compare: %s", eids)
+        return
 
     res = copy.deepcopy(envs[list(envs.keys())[0]])
     name2Wid = {

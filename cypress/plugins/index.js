@@ -1,4 +1,5 @@
 /// <reference types="cypress" />
+/* eslint-env node */
 // ***********************************************************
 // This example plugins/index.js can be used to load plugins
 //
@@ -21,6 +22,8 @@ const fs = require('fs');
 const path = require('path');
 const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
+
+const repoRoot = path.resolve(__dirname, '..', '..');
 
 function assertSafeToken(name, value) {
   const safePattern = /^[A-Za-z0-9._:-]+$/;
@@ -76,9 +79,19 @@ module.exports = (on) => {
         spawnArgs.push('-arg', ...args);
       }
 
+      const pythonPath = path.resolve(repoRoot, 'py');
+      const mergedPythonPath = process.env.PYTHONPATH
+        ? `${pythonPath}${path.delimiter}${process.env.PYTHONPATH}`
+        : pythonPath;
+
       const child = spawn('python', spawnArgs, {
         stdio: 'ignore',
         detached: true,
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          PYTHONPATH: mergedPythonPath,
+        },
       });
       child.unref();
 

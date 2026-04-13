@@ -33,6 +33,7 @@
     "test:init": "cypress run --spec './cypress/integration/screenshots.init.js'",
     "test:visual": "cypress run --spec './cypress/integration/screenshots.js'",
     "test": "cypress run --config ignoreTestFiles=*.init.js",
+    "test:e2e": "node scripts/test-e2e.js",
     "lint": "eslint js/.",
     "lint:fix": "eslint --fix --ext .js,.jsx js/"
   },

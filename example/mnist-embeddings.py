@@ -6,12 +6,19 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-import visdom
+from pathlib import Path
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+PY_DIR = ROOT / "py"
+if str(PY_DIR) not in sys.path:
+    sys.path.insert(0, str(PY_DIR))
+
+import visdom  # type: ignore[import-not-found]
 import numpy as np
 from PIL import Image  # type: ignore
 import base64 as b64  # type: ignore
 from io import BytesIO
-import sys
 
 try:
     features = np.loadtxt("example/data/mnist2500_X.txt")

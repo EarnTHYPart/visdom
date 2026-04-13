@@ -99,6 +99,36 @@ def test_compare_envs_does_not_load_from_parent_directory(tmp_path):
     assert traversal_eid not in state
 
 
+def test_resolve_env_path_file_normalizes_eid_and_stays_within_base_dir(tmp_path):
+    env_path = tmp_path / "envs"
+    env_path.mkdir()
+
+    resolved = server_utils.resolve_env_path_file(str(env_path), "../secret")
+
+    assert resolved == os.path.realpath(env_path / ".._secret.json")
+    assert os.path.commonpath([os.path.realpath(env_path), resolved]) == os.path.realpath(
+        env_path
+    )
+
+
+def test_compare_envs_returns_when_no_environments_are_available(tmp_path):
+    env_path = tmp_path / "envs"
+    env_path.mkdir()
+
+    state = {}
+    socket = _DummySocket()
+
+    server_utils.compare_envs(
+        state,
+        ["missing_a", "missing_b"],
+        socket,
+        env_path=str(env_path),
+    )
+
+    assert socket.messages == []
+    assert state == {}
+
+
 def test_load_env_does_not_load_from_parent_directory(tmp_path):
     env_path = tmp_path / "envs"
     env_path.mkdir()
