@@ -152,7 +152,8 @@ class Scene extends React.Component {
 
     this.start = this.start.bind(this);
     this.stop = this.stop.bind(this);
-    this.animate = this.animate.bind(this);
+    this.scheduleRender = this.scheduleRender.bind(this);
+    this.renderFrame = this.renderFrame.bind(this);
   }
 
   componentDidUpdate(prevProps) {
@@ -173,7 +174,10 @@ class Scene extends React.Component {
     if (this.props.content.data.length !== prevProps.content.data.length) {
       this.stop();
       this.setUpScene();
+      return;
     }
+
+    this.scheduleRender();
   }
 
   removeMouseInteractions() {
@@ -362,6 +366,7 @@ class Scene extends React.Component {
     let z = this.getZFromScale(scale);
     this.raycaster.params.Points.threshold = 30 / (scale * 0.5);
     this.camera.position.set(x, y, z);
+    this.scheduleRender();
   };
 
   getScaleFromZ(camera_z_position) {
@@ -418,12 +423,14 @@ class Scene extends React.Component {
       this.debouncedFn(() => {
         this.props.onSelect(datum);
       });
+      this.setState({ hovered: datum });
     }
-    this.setState({ hovered: datum });
   }
 
   hideTooltip() {
-    this.setState({ hovered: null });
+    if (this.state.hovered !== null) {
+      this.setState({ hovered: null });
+    }
   }
 
   sortIntersectsByDistanceToRay(intersects) {
@@ -449,25 +456,37 @@ class Scene extends React.Component {
 
     let point = new THREE.Points(geometry, material);
     hoverContainer.add(point);
+    this.scheduleRender();
   }
 
   removeHighlights(hoverContainer) {
-    hoverContainer.remove(...hoverContainer.children);
-  }
-
-  start() {
-    if (!this.frameId) {
-      this.frameId = requestAnimationFrame(this.animate);
+    if (hoverContainer.children.length > 0) {
+      hoverContainer.remove(...hoverContainer.children);
+      this.scheduleRender();
     }
   }
 
-  stop() {
-    cancelAnimationFrame(this.frameId);
+  start() {
+    this.scheduleRender();
   }
 
-  animate() {
+  stop() {
+    if (this.frameId) {
+      cancelAnimationFrame(this.frameId);
+      this.frameId = null;
+    }
+  }
+
+  renderFrame() {
     this.renderScene();
-    this.frameId = window.requestAnimationFrame(this.animate);
+    this.frameId = null;
+  }
+
+  scheduleRender() {
+    if (this.frameId) {
+      return;
+    }
+    this.frameId = window.requestAnimationFrame(this.renderFrame);
   }
 
   renderScene() {
