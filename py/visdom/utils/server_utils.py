@@ -380,10 +380,12 @@ def send_to_sources(handler, msg):
 def load_env(state, eid, socket, env_path=DEFAULT_ENV_PATH):
     """load an environment to a client by socket"""
     env = {}
+    eid = escape_eid(str(eid).strip())
+
     if eid in state:
         env = state.get(eid)
     elif env_path is not None:
-        p = os.path.join(env_path, eid.strip(), ".json")
+        p = os.path.join(env_path, "{0}.json".format(eid))
         if os.path.exists(p):
             with open(p, "r") as fn:
                 env = tornado.escape.json_decode(fn.read())
