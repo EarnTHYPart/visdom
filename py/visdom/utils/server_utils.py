@@ -136,10 +136,10 @@ def serialize_all(state, env_path=DEFAULT_ENV_PATH):
 
 
 def escape_eid(eid):
-    """Replace slashes with underscores, to avoid recognizing them
-    as directories.
+    """Replace forward slashes and backslashes with underscores,
+    to avoid recognizing them as directories.
     """
-    return eid.replace("/", "_")
+    return eid.replace("/", "_").replace("\\", "_")
 
 
 def extract_eid(args):
