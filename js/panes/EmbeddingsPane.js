@@ -419,11 +419,10 @@ class Scene extends React.Component {
 
   showTooltip(mouse_position, datum) {
     if (!this.state.hovered || this.state.hovered !== datum) {
-      this.setState({ detailsLoading: true });
+      this.setState({ detailsLoading: true, hovered: datum });
       this.debouncedFn(() => {
         this.props.onSelect(datum);
       });
-      this.setState({ hovered: datum });
     }
   }
 
