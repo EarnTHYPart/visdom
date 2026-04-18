@@ -427,7 +427,7 @@ class Scene extends React.Component {
   }
 
   hideTooltip() {
-    if (this.state.hovered !== null) {
+    if (this.state.hovered != null) {
       this.setState({ hovered: null });
     }
   }
