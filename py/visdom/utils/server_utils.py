@@ -179,6 +179,7 @@ def window(args):
     opts = args.get("opts", {})
 
     ptype = args["data"][0]["type"]
+    pane_type = args.get("pane_type", "plot")
 
     p = {
         "command": "window",
@@ -223,7 +224,7 @@ def window(args):
         p["content"]["has_previous"] = False
     else:
         p["content"] = {"data": args["data"], "layout": args["layout"]}
-        p["type"] = "plot"
+        p["type"] = pane_type if pane_type in ["plot", "roc_curve", "pr_curve"] else "plot"
 
     return p
 
@@ -238,22 +239,29 @@ def gather_envs(state, env_path=DEFAULT_ENV_PATH):
 
 def compare_envs(state, eids, socket, env_path=DEFAULT_ENV_PATH):
     logging.info("comparing envs")
-    normalized_eids = [escape_eid(str(eid).strip()) for eid in eids]
-    eidNums = {e: str(i) for i, e in enumerate(normalized_eids)}
+    normalized_eids = list(dict.fromkeys(escape_eid(str(eid).strip()) for eid in eids))
     env = {}
     envs = {}
     for eid in normalized_eids:
         if eid in state:
             envs[eid] = state.get(eid)
         elif env_path is not None:
-            p = os.path.join(env_path, eid.strip(), ".json")
+            p = os.path.join(env_path, "{0}.json".format(eid.strip()))
             if os.path.exists(p):
                 with open(p, "r") as fn:
                     env = tornado.escape.json_decode(fn.read())
                     state[eid] = env
                     envs[eid] = env
 
-    res = copy.deepcopy(envs[list(envs.keys())[0]])
+    if not envs:
+        logging.warning("no environments available for compare: %s", normalized_eids)
+        socket.eid = {}
+        return
+
+    compared_eids = list(envs.keys())
+    eidNums = {e: str(i) for i, e in enumerate(compared_eids)}
+
+    res = copy.deepcopy(envs[compared_eids[0]])
     name2Wid = {
         res["jsons"][wid].get("title", None): wid + "_compare"
         for wid in res.get("jsons", {})
@@ -264,11 +272,11 @@ def compare_envs(state, eids, socket, env_path=DEFAULT_ENV_PATH):
         res["jsons"][wid] = None
         res["jsons"].pop(wid)
 
-    for ix, eid in enumerate(sorted(envs.keys())):
+    for ix, eid in enumerate(compared_eids):
         env = envs[eid]
         for wid in env.get("jsons", {}).keys():
             win = env["jsons"][wid]
-            if win.get("type", None) != "plot":
+            if win.get("type", None) not in ["plot", "roc_curve", "pr_curve"]:
                 continue
             if "content" not in win:
                 continue
@@ -321,7 +329,8 @@ def compare_envs(state, eids, socket, env_path=DEFAULT_ENV_PATH):
     # create legend mapping environment names to environment numbers so one can
     # look it up for the new legend
     tableRows = [
-        "<tr> <td> {} </td> <td> {} </td> </tr>".format(v, eidNums[v]) for v in eidNums
+        "<tr> <td> {} </td> <td> {} </td> </tr>".format(eid, eidNums[eid])
+        for eid in compared_eids
     ]
 
     tbl = """"<style>
@@ -357,7 +366,7 @@ def compare_envs(state, eids, socket, env_path=DEFAULT_ENV_PATH):
         socket.write_message(v)
 
     socket.write_message(json.dumps({"command": "layout"}))
-    socket.eid = eids
+    socket.eid = eidNums
 
 
 # ------- Broadcasting functions ---------- #

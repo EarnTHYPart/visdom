@@ -416,6 +416,76 @@ def pytorch_wrap(f):
     return wrapped_f
 
 
+def _binary_clf_curve(y_true, y_score, pos_label=1):
+    """Compute true/false positives per distinct score threshold."""
+    y_true = np.asarray(y_true)
+    y_score = np.asarray(y_score)
+
+    assert y_true.ndim == 1, "y_true should have 1 dim"
+    assert y_score.ndim == 1, "y_score should have 1 dim"
+    assert y_true.shape[0] == y_score.shape[0], "y_true and y_score should match"
+    assert y_true.shape[0] > 0, "y_true and y_score should be non-empty"
+
+    y_true = y_true == pos_label
+    desc_score_indices = np.argsort(y_score, kind="mergesort")[::-1]
+    y_score = y_score[desc_score_indices]
+    y_true = y_true[desc_score_indices]
+
+    distinct_value_indices = np.where(np.diff(y_score))[0]
+    threshold_idxs = np.r_[distinct_value_indices, y_true.size - 1]
+
+    tps = np.cumsum(y_true, dtype=float)[threshold_idxs]
+    fps = 1 + threshold_idxs - tps
+    return fps, tps
+
+
+def _compute_roc_curve(y_true, y_score, pos_label=1):
+    fps, tps = _binary_clf_curve(y_true=y_true, y_score=y_score, pos_label=pos_label)
+    pos_total = float(tps[-1])
+    neg_total = float(fps[-1])
+    assert pos_total > 0, "y_true has no positive samples"
+    assert neg_total > 0, "y_true has no negative samples"
+
+    fpr = np.r_[0.0, fps / neg_total]
+    tpr = np.r_[0.0, tps / pos_total]
+    return fpr, tpr
+
+
+def _compute_pr_curve(y_true, y_score, pos_label=1):
+    fps, tps = _binary_clf_curve(y_true=y_true, y_score=y_score, pos_label=pos_label)
+    pos_total = float(tps[-1])
+    assert pos_total > 0, "y_true has no positive samples"
+
+    precision = tps / (tps + fps)
+    recall = tps / pos_total
+
+    # Include a left endpoint so the PR line starts at recall=0.
+    precision = np.r_[1.0, precision]
+    recall = np.r_[0.0, recall]
+    return precision, recall
+
+
+def _coerce_curve_xy(x, y, x_name, y_name):
+    x = np.asarray(x)
+    y = np.asarray(y)
+    assert x.ndim == 1, "{} should have 1 dim".format(x_name)
+    assert y.ndim == 1, "{} should have 1 dim".format(y_name)
+    assert x.shape[0] == y.shape[0], "{} and {} should match".format(x_name, y_name)
+    assert x.shape[0] > 1, "{} and {} should have at least 2 points".format(
+        x_name, y_name
+    )
+
+    order = np.argsort(x, kind="mergesort")
+    return x[order], y[order]
+
+
+def _trapz_area(y, x):
+    trapezoid = getattr(np, "trapezoid", None)
+    if trapezoid is not None:
+        return float(trapezoid(y, x))
+    return float(np.trapz(y, x))
+
+
 class Visdom(object):
     def __init__(
         self,
@@ -1807,6 +1877,175 @@ class Visdom(object):
 
         return self.scatter(
             X=linedata, Y=labels, opts=opts, win=win, env=env, update=update, name=name
+        )
+
+    @pytorch_wrap
+    def roc_curve(
+        self,
+        y_true=None,
+        y_score=None,
+        fpr=None,
+        tpr=None,
+        pos_label=1,
+        win=None,
+        env=None,
+        opts=None,
+    ):
+        """
+        Draw a ROC curve for binary classification.
+
+        You can either provide raw labels/scores (`y_true`, `y_score`) or
+        precomputed points (`fpr`, `tpr`).
+        """
+        opts = {} if opts is None else opts
+        _title2str(opts)
+        _assert_opts(opts)
+
+        has_raw = y_true is not None or y_score is not None
+        has_points = fpr is not None or tpr is not None
+        assert has_raw != has_points, (
+            "provide exactly one input mode: (y_true, y_score) or (fpr, tpr)"
+        )
+
+        if has_raw:
+            assert y_true is not None and y_score is not None, (
+                "both y_true and y_score are required"
+            )
+            fpr, tpr = _compute_roc_curve(
+                y_true=np.ravel(y_true),
+                y_score=np.ravel(y_score),
+                pos_label=pos_label,
+            )
+        else:
+            assert fpr is not None and tpr is not None, "both fpr and tpr are required"
+            fpr, tpr = _coerce_curve_xy(fpr, tpr, "fpr", "tpr")
+
+        auc = _trapz_area(tpr, fpr)
+
+        opts = dict(opts)
+        opts["xlabel"] = opts.get("xlabel", "False Positive Rate")
+        opts["ylabel"] = opts.get("ylabel", "True Positive Rate")
+        opts["legend"] = opts.get("legend", ["ROC", "Chance"])
+        opts["title"] = opts.get("title", "ROC Curve (AUC={:.4f})".format(auc))
+
+        data = [
+            {
+                "x": nan2none(fpr.tolist()),
+                "y": nan2none(tpr.tolist()),
+                "name": opts["legend"][0],
+                "type": "scatter",
+                "mode": "lines",
+            },
+            {
+                "x": [0.0, 1.0],
+                "y": [0.0, 1.0],
+                "name": opts["legend"][1],
+                "type": "scatter",
+                "mode": "lines",
+                "line": {"dash": "dash"},
+            },
+        ]
+
+        return self._send(
+            {
+                "data": data,
+                "win": win,
+                "eid": env,
+                "layout": _opts2layout(opts),
+                "opts": opts,
+                "pane_type": "roc_curve",
+            }
+        )
+
+    @pytorch_wrap
+    def pr_curve(
+        self,
+        y_true=None,
+        y_score=None,
+        precision=None,
+        recall=None,
+        pos_label=1,
+        win=None,
+        env=None,
+        opts=None,
+    ):
+        """
+        Draw a precision-recall curve for binary classification.
+
+        You can either provide raw labels/scores (`y_true`, `y_score`) or
+        precomputed points (`precision`, `recall`).
+        """
+        opts = {} if opts is None else opts
+        _title2str(opts)
+        _assert_opts(opts)
+
+        has_raw = y_true is not None or y_score is not None
+        has_points = precision is not None or recall is not None
+        assert has_raw != has_points, (
+            "provide exactly one input mode: (y_true, y_score) or (precision, recall)"
+        )
+
+        if has_raw:
+            assert y_true is not None and y_score is not None, (
+                "both y_true and y_score are required"
+            )
+            precision, recall = _compute_pr_curve(
+                y_true=np.ravel(y_true),
+                y_score=np.ravel(y_score),
+                pos_label=pos_label,
+            )
+        else:
+            assert precision is not None and recall is not None, (
+                "both precision and recall are required"
+            )
+            recall, precision = _coerce_curve_xy(recall, precision, "recall", "precision")
+
+        auc = _trapz_area(precision, recall)
+
+        opts = dict(opts)
+        opts["xlabel"] = opts.get("xlabel", "Recall")
+        opts["ylabel"] = opts.get("ylabel", "Precision")
+        opts["legend"] = opts.get("legend", ["PR", "Baseline"])
+        opts["title"] = opts.get("title", "PR Curve (AUC={:.4f})".format(auc))
+
+        positive_rate = None
+        if has_raw:
+            y_true_arr = np.ravel(np.asarray(y_true))
+            positive_rate = float(np.mean(y_true_arr == pos_label))
+
+        baseline = (
+            [positive_rate, positive_rate]
+            if positive_rate is not None
+            else [float(precision[-1]), float(precision[-1])]
+        )
+
+        data = [
+            {
+                "x": nan2none(recall.tolist()),
+                "y": nan2none(precision.tolist()),
+                "name": opts["legend"][0],
+                "type": "scatter",
+                "mode": "lines",
+            },
+            {
+                "x": [0.0, 1.0],
+                "y": baseline,
+                "name": opts["legend"][1],
+                "type": "scatter",
+                "mode": "lines",
+                "line": {"dash": "dash"},
+            },
+        ]
+
+        return self._send(
+            {
+                "data": data,
+                "win": win,
+                "eid": env,
+                "layout": _opts2layout(opts),
+                "opts": opts,
+                "pane_type": "pr_curve",
+            }
         )
 
     @pytorch_wrap
