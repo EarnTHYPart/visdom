@@ -11,28 +11,48 @@ const visdomUrl = `http://127.0.0.1:${visdomPort}/`;
 
 function findPythonExecutable() {
   if (process.env.PYTHON && process.env.PYTHON.trim().length > 0) {
-    return process.env.PYTHON.trim();
+    return {
+      executable: process.env.PYTHON.trim(),
+      source: 'PYTHON environment variable',
+      checkedPaths: [],
+    };
   }
 
   const envNames = ['.venv', 'venv'];
+  const checkedPaths = [];
   for (const envName of envNames) {
     const windowsPython = path.join(repoRoot, envName, 'Scripts', 'python.exe');
     const posixPython = path.join(repoRoot, envName, 'bin', 'python');
+    checkedPaths.push(windowsPython, posixPython);
 
     if (fs.existsSync(windowsPython)) {
-      return windowsPython;
+      return {
+        executable: windowsPython,
+        source: `${envName} virtual environment`,
+        checkedPaths,
+      };
     }
 
     if (fs.existsSync(posixPython)) {
-      return posixPython;
+      return {
+        executable: posixPython,
+        source: `${envName} virtual environment`,
+        checkedPaths,
+      };
     }
   }
 
-  return process.platform === 'win32' ? 'python' : 'python3';
+  return {
+    executable: process.platform === 'win32' ? 'python' : 'python3',
+    source: 'system PATH fallback',
+    checkedPaths,
+  };
 }
 
 function waitForServer(url, timeoutMs = 120000) {
   const startedAt = Date.now();
+  let lastStatusCode = null;
+  let lastErrorMessage = null;
 
   return new Promise((resolve, reject) => {
     const poll = () => {
@@ -43,17 +63,26 @@ function waitForServer(url, timeoutMs = 120000) {
           return;
         }
 
+        lastStatusCode = response.statusCode;
+
         if (Date.now() - startedAt >= timeoutMs) {
-          reject(new Error(`Timed out waiting for Visdom at ${url}`));
+          const details = lastStatusCode
+            ? `last status=${lastStatusCode}`
+            : `last error=${lastErrorMessage || 'none'}`;
+          reject(new Error(`Timed out waiting for Visdom at ${url} (${details})`));
           return;
         }
 
         setTimeout(poll, 1000);
       });
 
-      request.on('error', () => {
+      request.on('error', (error) => {
+        lastErrorMessage = error && error.message ? error.message : String(error);
         if (Date.now() - startedAt >= timeoutMs) {
-          reject(new Error(`Timed out waiting for Visdom at ${url}`));
+          const details = lastStatusCode
+            ? `last status=${lastStatusCode}`
+            : `last error=${lastErrorMessage || 'none'}`;
+          reject(new Error(`Timed out waiting for Visdom at ${url} (${details})`));
           return;
         }
 
@@ -87,7 +116,8 @@ function runCommand(command, args, env) {
 }
 
 async function main() {
-  const pythonExecutable = findPythonExecutable();
+  const pythonInfo = findPythonExecutable();
+  const pythonExecutable = pythonInfo.executable;
   const pythonPath = path.resolve(repoRoot, 'py');
   const mergedPythonPath = process.env.PYTHONPATH
     ? `${pythonPath}${path.delimiter}${process.env.PYTHONPATH}`
@@ -97,6 +127,16 @@ async function main() {
     PYTHONPATH: mergedPythonPath,
     CYPRESS_VERIFY_TIMEOUT: process.env.CYPRESS_VERIFY_TIMEOUT || '120000',
   };
+
+  console.log(
+    `[e2e] Python executable: ${pythonExecutable} (${pythonInfo.source})`
+  );
+  if (pythonInfo.source === 'system PATH fallback') {
+    console.warn('[e2e] No repo virtual environment was found. Checked:');
+    pythonInfo.checkedPaths.forEach((candidate) => {
+      console.warn(`[e2e] - ${candidate}`);
+    });
+  }
 
   const server = spawn(
     pythonExecutable,
