@@ -425,6 +425,7 @@ def _binary_clf_curve(y_true, y_score, pos_label=1):
     assert y_score.ndim == 1, "y_score should have 1 dim"
     assert y_true.shape[0] == y_score.shape[0], "y_true and y_score should match"
     assert y_true.shape[0] > 0, "y_true and y_score should be non-empty"
+    assert np.all(np.isfinite(y_score)), "y_score should only contain finite values"
 
     y_true = y_true == pos_label
     desc_score_indices = np.argsort(y_score, kind="mergesort")[::-1]
@@ -477,6 +478,14 @@ def _coerce_curve_xy(x, y, x_name, y_name):
 
     order = np.argsort(x, kind="mergesort")
     return x[order], y[order]
+
+
+def _assert_curve_range(values, name):
+    values = np.asarray(values)
+    assert np.all(np.isfinite(values)), "{} should only contain finite values".format(name)
+    assert np.all((values >= 0.0) & (values <= 1.0)), (
+        "{} should be within [0, 1]".format(name)
+    )
 
 
 def _trapz_area(y, x):
@@ -1920,6 +1929,9 @@ class Visdom(object):
             assert fpr is not None and tpr is not None, "both fpr and tpr are required"
             fpr, tpr = _coerce_curve_xy(fpr, tpr, "fpr", "tpr")
 
+        _assert_curve_range(fpr, "fpr")
+        _assert_curve_range(tpr, "tpr")
+
         auc = _trapz_area(tpr, fpr)
 
         opts = dict(opts)
@@ -1999,6 +2011,9 @@ class Visdom(object):
                 "both precision and recall are required"
             )
             recall, precision = _coerce_curve_xy(recall, precision, "recall", "precision")
+
+        _assert_curve_range(recall, "recall")
+        _assert_curve_range(precision, "precision")
 
         auc = _trapz_area(precision, recall)
 

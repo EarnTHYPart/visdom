@@ -77,3 +77,20 @@ def test_curve_requires_exactly_one_input_mode():
 
     with pytest.raises(AssertionError):
         vis.pr_curve()
+
+
+def test_roc_curve_rejects_non_finite_scores():
+    vis = _viz()
+
+    with pytest.raises(AssertionError, match="finite"):
+        vis.roc_curve(y_true=[0, 1], y_score=[0.2, np.nan])
+
+
+def test_curve_rejects_out_of_range_precomputed_values():
+    vis = _viz()
+
+    with pytest.raises(AssertionError, match=r"\[0, 1\]"):
+        vis.roc_curve(fpr=[0.0, 1.2], tpr=[0.0, 1.0])
+
+    with pytest.raises(AssertionError, match=r"\[0, 1\]"):
+        vis.pr_curve(precision=[0.9, -0.1], recall=[0.0, 1.0])
