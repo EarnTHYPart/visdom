@@ -157,7 +157,9 @@ class Scene extends React.Component {
   }
 
   componentDidUpdate(prevProps) {
-    if (this.state.detailsLoading !== false) {
+    const selectedChanged =
+      prevProps.content.selected !== this.props.content.selected;
+    if (this.state.detailsLoading !== false && selectedChanged) {
       this.setState({ detailsLoading: false });
     }
 
@@ -182,6 +184,9 @@ class Scene extends React.Component {
 
   removeMouseInteractions() {
     const { renderer, zoom } = this;
+    if (!renderer || !renderer.domElement || !zoom) {
+      return;
+    }
     let view = select(renderer.domElement);
 
     view.on('mousemove', null);
@@ -352,10 +357,13 @@ class Scene extends React.Component {
 
   componentWillUnmount() {
     this.stop();
-    let view = select(this.renderer.domElement);
-    view.on('mousemove', null);
-    view.on('mouseleave', null);
-    this.mount.removeChild(this.renderer.domElement);
+    if (this.debouncedFn && this.debouncedFn.clear) {
+      this.debouncedFn.clear();
+    }
+    if (this.renderer && this.renderer.domElement) {
+      this.removeMouseInteractions();
+      this.mount.removeChild(this.renderer.domElement);
+    }
   }
 
   /* utility methods */
@@ -428,7 +436,10 @@ class Scene extends React.Component {
 
   hideTooltip() {
     if (this.state.hovered != null) {
-      this.setState({ hovered: null });
+      if (this.debouncedFn && this.debouncedFn.clear) {
+        this.debouncedFn.clear();
+      }
+      this.setState({ hovered: null, detailsLoading: false });
     }
   }
 
