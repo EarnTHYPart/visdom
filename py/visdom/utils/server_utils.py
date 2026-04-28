@@ -119,8 +119,7 @@ def serialize_env(state, eids, env_path=DEFAULT_ENV_PATH):
     env_ids = [i for i in eids if i in state]
     if env_path is not None:
         for env_id in env_ids:
-            safe_env_id = escape_eid(str(env_id).strip())
-            env_path_file = os.path.join(env_path, "{0}.json".format(safe_env_id))
+            env_path_file = env_path_file_for(env_path, env_id)
             with open(env_path_file, "w") as fn:
                 if isinstance(state[env_id], LazyEnvData):
                     fn.write(json.dumps(state[env_id]._raw_dict))
@@ -141,6 +140,10 @@ def escape_eid(eid):
     to avoid recognizing them as directories.
     """
     return eid.replace("/", "_").replace("\\", "_")
+
+
+def env_path_file_for(env_path, eid):
+    return os.path.join(env_path, "{0}.json".format(escape_eid(str(eid).strip())))
 
 
 def extract_eid(args):
@@ -246,7 +249,7 @@ def compare_envs(state, eids, socket, env_path=DEFAULT_ENV_PATH):
         if eid in state:
             envs[eid] = state.get(eid)
         elif env_path is not None:
-            p = os.path.join(env_path, "{0}.json".format(eid.strip()))
+            p = env_path_file_for(env_path, eid)
             if os.path.exists(p):
                 with open(p, "r") as fn:
                     env = tornado.escape.json_decode(fn.read())
@@ -395,7 +398,7 @@ def load_env(state, eid, socket, env_path=DEFAULT_ENV_PATH):
     if eid in state:
         env = state.get(eid)
     elif env_path is not None:
-        p = os.path.join(env_path, "{0}.json".format(eid))
+        p = env_path_file_for(env_path, eid)
         if os.path.exists(p):
             with open(p, "r") as fn:
                 env = tornado.escape.json_decode(fn.read())

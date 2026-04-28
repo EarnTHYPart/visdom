@@ -40,6 +40,7 @@ from visdom.utils.server_utils import (
     broadcast_envs,
     serialize_env,
     escape_eid,
+    env_path_file_for,
     compare_envs,
     load_env,
     broadcast,
@@ -421,7 +422,7 @@ class DeleteEnvHandler(BaseHandler):
         if eid is not None:
             del handler.state[eid]
             if handler.env_path is not None:
-                p = os.path.join(handler.env_path, "{0}.json".format(eid))
+                p = env_path_file_for(handler.env_path, eid)
                 os.remove(p)
             broadcast_envs(handler)
 
