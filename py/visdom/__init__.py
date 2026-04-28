@@ -488,6 +488,13 @@ def _assert_curve_range(values, name):
     )
 
 
+def _curve_legend(legend, default_legend):
+    if not isinstance(legend, (tuple, list)) or len(legend) < 2:
+        return list(default_legend)
+
+    return list(legend)
+
+
 def _trapz_area(y, x):
     trapezoid = getattr(np, "trapezoid", None)
     if trapezoid is not None:
@@ -1937,7 +1944,7 @@ class Visdom(object):
         opts = dict(opts)
         opts["xlabel"] = opts.get("xlabel", "False Positive Rate")
         opts["ylabel"] = opts.get("ylabel", "True Positive Rate")
-        opts["legend"] = opts.get("legend", ["ROC", "Chance"])
+        opts["legend"] = _curve_legend(opts.get("legend"), ["ROC", "Chance"])
         opts["title"] = opts.get("title", "ROC Curve (AUC={:.4f})".format(auc))
 
         data = [
@@ -2020,7 +2027,7 @@ class Visdom(object):
         opts = dict(opts)
         opts["xlabel"] = opts.get("xlabel", "Recall")
         opts["ylabel"] = opts.get("ylabel", "Precision")
-        opts["legend"] = opts.get("legend", ["PR", "Baseline"])
+        opts["legend"] = _curve_legend(opts.get("legend"), ["PR", "Baseline"])
         opts["title"] = opts.get("title", "PR Curve (AUC={:.4f})".format(auc))
 
         positive_rate = None

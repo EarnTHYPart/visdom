@@ -94,3 +94,19 @@ def test_curve_rejects_out_of_range_precomputed_values():
 
     with pytest.raises(AssertionError, match=r"\[0, 1\]"):
         vis.pr_curve(precision=[0.9, -0.1], recall=[0.0, 1.0])
+
+
+def test_curve_uses_default_legends_when_invalid():
+    vis = _viz()
+
+    roc_msg, _ = vis.roc_curve(fpr=[0.0, 1.0], tpr=[0.0, 1.0], opts={"legend": ["ROC only"]})
+    assert roc_msg["data"][0]["name"] == "ROC"
+    assert roc_msg["data"][1]["name"] == "Chance"
+
+    pr_msg, _ = vis.pr_curve(
+        precision=[0.9, 0.8],
+        recall=[1.0, 0.0],
+        opts={"legend": "not-a-legend"},
+    )
+    assert pr_msg["data"][0]["name"] == "PR"
+    assert pr_msg["data"][1]["name"] == "Baseline"
